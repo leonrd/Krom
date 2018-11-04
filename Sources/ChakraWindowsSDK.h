@@ -15,7 +15,9 @@ typedef BYTE* ChakraBytePtr;
 #include <stdio.h>
 #include <string>
 
-#include "Utf8Helper.h"
+#include "stdafx.h"
+
+#include <Utf8Helper.h>
 
 #define PARAM_NOT_NULL(p) \
     if (p == nullptr) \
