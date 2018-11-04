@@ -3272,7 +3272,7 @@ int kore(int argc, char** argv) {
 	if (argc > 0) {
 		bindir = std::string(argv[0]);
 	}
-#ifdef KORE_WINDOWS
+#if defined(KORE_WINDOWS) || defined(KORE_WINDOWSAPP)
 	bindir = bindir.substr(0, bindir.find_last_of("\\"));
 #else
 	bindir = bindir.substr(0, bindir.find_last_of("/"));
@@ -3339,7 +3339,7 @@ int kore(int argc, char** argv) {
 	code[reader.size()] = 0;
 	reader.close();
 
-	#ifdef KORE_WINDOWS
+	#if defined(KORE_WINDOWS) || defined(KORE_WINDOWSAPP)
 	char dirsep = '\\';
 	#else
 	char dirsep = '/';
