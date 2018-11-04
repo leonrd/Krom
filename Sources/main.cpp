@@ -92,6 +92,8 @@ JsContextRef context;
 
 #ifdef KORE_WINDOWS
 #define CALLBACK    __stdcall
+#elif defined(KORE_WINDOWSAPP)
+// don't redefine CALLBACK
 #else
 #define CALLBACK
 #endif
