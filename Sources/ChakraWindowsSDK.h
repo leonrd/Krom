@@ -15,6 +15,8 @@ typedef BYTE* ChakraBytePtr;
 #include <stdio.h>
 #include <string>
 
+#include "Utf8Helper.h"
+
 #define PARAM_NOT_NULL(p) \
     if (p == nullptr) \
     { \
@@ -64,7 +66,73 @@ JsCreateStringUtf16(
 	return JsCreateExternalArrayBuffer((void*)content, (unsigned int)length, nullptr, nullptr, value);
 }
 
-// TODO: add Utf16 support
+template <class CopyFunc>
+JsErrorCode WriteStringCopy(
+	JsValueRef value,
+	int start,
+	int length,
+	_Out_opt_ size_t* written,
+	const CopyFunc& copyFunc)
+{
+	if (written)
+	{
+		*written = 0;  // init to 0 for default
+	}
+
+	const char16* str = nullptr;
+	size_t strLength = 0;
+	JsErrorCode errorCode = JsStringToPointer(value, &str, &strLength);
+	if (errorCode != JsNoError)
+	{
+		return errorCode;
+	}
+
+	if (start < 0 || (size_t)start > strLength)
+	{
+		return JsErrorInvalidArgument;  // start out of range, no chars written
+	}
+
+	size_t count = min(static_cast<size_t>(length), strLength - start);
+	if (count == 0)
+	{
+		return JsNoError;  // no chars written
+	}
+
+	errorCode = copyFunc(str + start, count, written);
+	if (errorCode != JsNoError)
+	{
+		return errorCode;
+	}
+
+	if (written)
+	{
+		*written = count;
+	}
+
+	return JsNoError;
+}
+
+CHAKRA_API JsCopyStringUtf16(
+	_In_ JsValueRef value,
+	_In_ int start,
+	_In_ int length,
+	_Out_opt_ uint16_t* buffer,
+	_Out_opt_ size_t* written)
+{
+	PARAM_NOT_NULL(value);
+	VALIDATE_JSREF(value);
+
+	return WriteStringCopy(value, start, length, written,
+		[buffer](const char16* src, size_t count, size_t *needed)
+	{
+		if (buffer)
+		{
+			memmove(buffer, src, sizeof(char16) * count);
+		}
+		return JsNoError;
+	});
+}
+
 CHAKRA_API JsCopyString(
 	_In_ JsValueRef value,
 	_Out_opt_ char* buffer,
@@ -74,7 +142,7 @@ CHAKRA_API JsCopyString(
 	PARAM_NOT_NULL(value);
 	VALIDATE_JSREF(value);
 
-	PCWSTR str;
+	const char16* str = nullptr;
 	size_t strLength = 0;
 	JsErrorCode errorCode = JsStringToPointer(value, &str, &strLength);
 	if (errorCode != JsNoError)
@@ -82,11 +150,11 @@ CHAKRA_API JsCopyString(
 		return errorCode;
 	}
 
-	std::wstring outString;
-	outString.append(str);
-
-	sprintf(buffer, "%ws", outString.c_str());
-	*length = strLength;
+	utf8::WideToNarrow utf8Str(str, strLength, buffer, bufferSize);
+	if (length)
+	{
+		*length = utf8Str.Length();
+	}
 
 	return JsNoError;
 }

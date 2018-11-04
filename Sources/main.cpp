@@ -2526,7 +2526,7 @@ namespace {
 		mbstowcs(&wScript[0], scriptfile, scriptSize);
 		const wchar_t* wcScript = wScript.c_str();
 
-		JsErrorCode errorCode = JsRunScript(wcScript, cookie, L"krom.js", &result);
+		JsErrorCode errorCode = JsRunScript(L"Krom.log('hi');", cookie, L"krom.js", &result);
 		if (errorCode != JsNoError)
 		{
 			return;
