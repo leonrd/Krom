@@ -1,4 +1,3 @@
-#include <ChakraCore.h>
 
 #if 0
 #include "Runtime.h"
@@ -47,8 +46,10 @@
 #include <Kore/Threads/Thread.h>
 #include <Kore/Threads/Mutex.h>
 
+#ifndef KORE_WINDOWSAPP
 #include "debug.h"
 #include "debug_server.h"
+#endif
 
 #include <assert.h>
 #include <stdio.h>
@@ -59,18 +60,26 @@
 #include <string>
 #include <vector>
 
-#ifdef KORE_WINDOWS
+#ifdef KORE_WINDOWSAPP
+#include "ChakraWindowsSDK.h"
+#else
+#include <ChakraCore.h>
+#endif
+
+#if defined(KORE_WINDOWS) || defined(KORE_WINDOWSAPP)
 #include <Windows.h> // AttachConsole
 #endif
 
-#ifndef KORE_WINDOWS
+#if !defined(KORE_WINDOWS) && !defined(KORE_WINDOWSAPP)
 #include <unistd.h>
 #endif
 
 const int KROM_API = 1;
 const int KROM_DEBUG_API = 1;
 
+#ifndef KORE_WINDOWSAPP
 bool AttachProcess(HANDLE hmod);
+#endif
 
 #ifdef KORE_MACOS
 const char* macgetresourcepath();
@@ -157,6 +166,7 @@ namespace {
 		vsnprintf(msg, sizeof(msg) - 2, format, args);
 		Kore::log(Kore::Info, "%s", msg);
 
+#ifndef  KORE_WINDOWSAPP
 		if (debugMode) {
 			std::vector<int> message;
 			message.push_back(IDE_MESSAGE_LOG);
@@ -167,6 +177,7 @@ namespace {
 			}
 			sendMessage(message.data(), message.size());
 		}
+#endif
 	}
 
 	void sendLogMessage(const char* format, ...) {
@@ -197,7 +208,7 @@ namespace {
 		}
 
 		if (apiVersion != KROM_API) {
-			const char* outdated;
+			char* outdated = "";
 			if (apiVersion < KROM_API) {
 				outdated = "Kha";
 			}
@@ -226,7 +237,7 @@ namespace {
 		if (!nosound) {
 			Kore::Audio2::audioCallback = updateAudio;
 			Kore::Audio2::init();
-#ifdef KORE_WINDOWS
+#if defined(KORE_WINDOWS) || defined(KORE_WINDOWSAPP)
 			initAudioBuffer();
 #endif
 		}
@@ -1254,7 +1265,7 @@ namespace {
 		Kore::Graphics4::TextureUnit* unit;
 		JsGetExternalData(arguments[1], (void**)&unit);
 
-		Kore::Graphics4::Texture* texture;
+		Kore::Graphics4::Texture* texture = nullptr;
 		bool imageChanged = false;
 		if (debugMode) {
 			JsValueRef filenameObj;
@@ -1274,7 +1285,9 @@ namespace {
 		if (!imageChanged) {
 			JsGetExternalData(arguments[2], (void**)&texture);
 		}
-		Kore::Graphics4::setTexture(*unit, texture);
+		if (texture != nullptr) {
+			Kore::Graphics4::setTexture(*unit, texture);
+		}
 
 		return JS_INVALID_REFERENCE;
 	}
@@ -2323,7 +2336,7 @@ namespace {
 
 #define addFunction(name, funcName) JsPropertyIdRef name##Id;\
 	JsValueRef name##Func;\
-	JsCreateFunction(funcName, nullptr, &name##Func);\
+	JsCreateFunction((JsNativeFunction)funcName, nullptr, &name##Func);\
 	JsCreatePropertyId(#name, strlen(#name), &name##Id);\
 	JsSetProperty(krom, name##Id, name##Func, false)
 
@@ -2482,6 +2495,8 @@ namespace {
 	void initKrom(char* scriptfile) {
 #ifdef KORE_WINDOWS
 		AttachProcess(GetModuleHandle(nullptr));
+#elif defined(KORE_WINDOWSAPP)
+		// no debugging support (yet?)
 #else
 		AttachProcess(nullptr);
 #endif
@@ -2505,7 +2520,19 @@ namespace {
 
 	void startKrom(char* scriptfile) {
 		JsValueRef result;
+#ifdef  KORE_WINDOWSAPP
+		PCWSTR wScript;
+		size_t scriptLen = 0;
+		JsErrorCode errorCode = JsStringToPointer(script, &wScript, &scriptLen);
+		if (errorCode != JsNoError)
+		{
+			return;
+		}
+
+		JsRunScript(wScript, cookie, L"krom.js", &result);
+#else
 		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
+#endif
 	}
 
 	bool codechanged = false;
@@ -2513,10 +2540,12 @@ namespace {
 	void parseCode();
 
 	void runJS() {
+#ifndef  KORE_WINDOWSAPP
 		if (debugMode) {
 			Message message = receiveMessage();
 			handleDebugMessage(message, false);
 		}
+#endif
 
 		if (codechanged) {
 			parseCode();
@@ -2531,10 +2560,14 @@ namespace {
 		bool except;
 		JsHasException(&except);
 		if (except) {
-			JsValueRef meta;
+			JsValueRef meta = nullptr;
 			JsValueRef exceptionObj;
+#ifdef KORE_WINDOWSAPP
+			JsGetAndClearException(&exceptionObj);
+#else
 			JsGetAndClearExceptionWithMetadata(&meta);
 			JsGetProperty(meta, getId("exception"), &exceptionObj);
+#endif
 			char buf[2048];
 			size_t length;
 			
@@ -2544,6 +2577,7 @@ namespace {
 			buf[length] = 0;
 			sendLogMessage("Uncaught exception: %s", buf);
 
+#ifndef KORE_WINDOWSAPP
 			JsValueRef sourceObj;
 			JsGetProperty(meta, getId("source"), &sourceObj);
 			JsCopyString(sourceObj, nullptr, 0, &length);
@@ -2561,6 +2595,7 @@ namespace {
 				buf[column + 1] = 0;
 				sendLogMessage("%s", buf);
 			}
+#endif
 
 			JsValueRef stackObj;
 			JsGetProperty(exceptionObj, getId("stack"), &stackObj);
@@ -3203,7 +3238,9 @@ namespace {
 	}
 }
 
+#ifndef KORE_WINDOWSAPP
 extern "C" void watchDirectories(char* path1, char* path2);
+#endif
 
 extern "C" void filechanged(char* path) {
 	std::string strpath = path;
@@ -3311,13 +3348,16 @@ int kore(int argc, char** argv) {
 
 	Kore::threadsInit();
 
+#ifndef KORE_WINDOWSAPP
 	if (watch) {
 		std::string path1(assetsdir), path2(shadersdir);
 		watchDirectories(&path1[0], &path2[0]);
 	}
+#endif
 
 	initKrom(code);
 
+#ifndef KORE_WINDOWSAPP
 	if (debugMode) {
 		startDebugger(runtime, port);
 		for (;;) {
@@ -3343,6 +3383,7 @@ int kore(int argc, char** argv) {
 #endif
 		}
 	}
+#endif
 
 	startKrom(code);
 	
