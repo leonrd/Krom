@@ -2521,15 +2521,16 @@ namespace {
 	void startKrom(char* scriptfile) {
 		JsValueRef result;
 #ifdef  KORE_WINDOWSAPP
-		PCWSTR wScript;
-		size_t scriptLen = 0;
-		JsErrorCode errorCode = JsStringToPointer(script, &wScript, &scriptLen);
+		const size_t scriptSize = strlen(scriptfile);
+		std::wstring wScript(scriptSize, L'#');
+		mbstowcs(&wScript[0], scriptfile, scriptSize);
+		const wchar_t* wcScript = wScript.c_str();
+
+		JsErrorCode errorCode = JsRunScript(wcScript, cookie, L"krom.js", &result);
 		if (errorCode != JsNoError)
 		{
 			return;
 		}
-
-		JsRunScript(wScript, cookie, L"krom.js", &result);
 #else
 		JsRun(script, cookie, source, JsParseScriptAttributeNone, &result);
 #endif
