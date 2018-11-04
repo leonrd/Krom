@@ -3268,7 +3268,10 @@ extern "C" void filechanged(char* path) {
 int kore(int argc, char** argv) {
 	_argc = argc;
 	_argv = argv;
-	std::string bindir(argv[0]);
+	std::string bindir = "";
+	if (argc > 0) {
+		bindir = std::string(argv[0]);
+	}
 #ifdef KORE_WINDOWS
 	bindir = bindir.substr(0, bindir.find_last_of("\\"));
 #else
