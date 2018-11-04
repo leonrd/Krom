@@ -34,11 +34,10 @@ JsCreatePropertyId(
 	_In_z_ const char *name,
 	_In_ size_t length,
 	_Out_ JsPropertyIdRef *propertyId) {
-	const size_t nameSize = strlen(name) + 1;
-	std::wstring wName(nameSize, L'#');
-	mbstowcs(&wName[0], name, nameSize);
-	const wchar_t* wcName = wName.c_str();
-	return JsGetPropertyIdFromName(wcName, propertyId);
+
+	utf8::NarrowToWide wName((LPCSTR)name);
+
+	return JsGetPropertyIdFromName(wName, propertyId);
 }
 
 JsPropertyIdRef getId(const char* name) {
